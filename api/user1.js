@@ -2,7 +2,14 @@ const express = require('express');
 const Userrouter = express.Router();
 
 //mongodb user model
-const User = require('../models/user');
+const User = require('./../models/user');
+
+//mongodb userverification model
+const UserVerification = require('./../models/UserVerification');
+
+//email handler
+const nodemailer = require('nodemailer');
+
 
 //Password Handler
 const bcrypt = require('bcrypt');

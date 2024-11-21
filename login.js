@@ -1,7 +1,9 @@
 //mongodb
 
 const connectDB=require("./config/database")
-const app = require('express')();
+const express = require('express');
+const app = express();
+const path = require('path');
 const port = 5001;
 const Userrouter = require('./api/user1');
 const { applyTimestamps } = require('./models/user');
@@ -12,12 +14,12 @@ app.use(bodyParser());
 
 app.use('/user',Userrouter);
 
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Set up a route for your HTML file (optional, if you want to specify a different route)
 app.get('/', (req, res) => {
-    res.send('Welcome to your Node.js authentication app!');
-  });
-  app.get('/user/signup', (req, res) => {
-    res.send('Welcome to my Node.js authentication app!');
-  });
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 connectDB();
 app.listen(port,() =>
