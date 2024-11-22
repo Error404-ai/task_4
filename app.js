@@ -6,7 +6,6 @@ const app = express();
 const path = require('path');
 const port = 5001;
 const Userrouter = require('./api/user1');
-const { applyTimestamps } = require('./models/user');
 
 //For acceppting post form data
 const bodyParser = require('express').json;
@@ -16,7 +15,7 @@ app.use('/user',Userrouter);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Set up a route for your HTML file (optional, if you want to specify a different route)
+// Set up a route for your HTML file 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -26,3 +25,4 @@ app.listen(port,() =>
 {
     console.log(`Server running on port ${port}`);
 })
+// console.log(process.env.AUTH_EMAIL,process.env.AUTH_PASS);

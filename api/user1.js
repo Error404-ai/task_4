@@ -10,6 +10,36 @@ const UserVerification = require('./../models/UserVerification');
 //email handler
 const nodemailer = require('nodemailer');
 
+//unique string
+const {v4 : uuidv4} = require("uuid");
+
+//env variables
+require('dotenv').config();
+
+//nodemailer transporter //this is not working
+let transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: process.env.AUTH_EMAIL,
+        pass: process.env.AUTH_PASS,
+    },
+    logger: true,
+    debug: true,
+});
+
+
+//testing success
+transporter.verify((error,success) =>
+{
+    if(error){
+        console.log(error);
+    }
+    else{
+        console.log("Ready for messages");
+        console.log(success);
+    }
+});
+
 
 //Password Handler
 const bcrypt = require('bcrypt');
@@ -67,15 +97,14 @@ Userrouter.post('/signup', (req, res) => {
                         name,
                         email,
                         password: hashedPassword,
-                        dateofBirth
+                        dateofBirth,
+                        verified : false
                     });
 
                     newUser.save().then(result => {
-                        res.json({
-                            status: "SUCCESS",
-                            message: "SIGNUP SUCCESSFULL",
-                            data: result,
-                        })
+                       //handle account verification
+                       console.log("User saved successfully:", result);
+                       sendVerificationEmail(result,res);
                     }
                     )
                         .catch(err => {
@@ -89,7 +118,7 @@ Userrouter.post('/signup', (req, res) => {
                     .catch(err => {
                         console.log(err);
                         res.json({
-                            status: "FAILED",
+                       status: "FAILED",
                             message: "An error Occured while hashing password!"
                         })
                     })
@@ -106,8 +135,99 @@ Userrouter.post('/signup', (req, res) => {
     }
 })
 
+//send verification email
+const sendVerificationEmail = ({_id,email},res) =>
+{
+    //url to be used in the email
+    const currentUrl = "http://localhost:5001/";
+    const uniqueString = uuidv4() + _id;
+    const mailOptions ={
+        from: process.env.AUTH_EMAIL,
+        to: email,
+        subject: "Verify Your Email",
+        html :
+       ` <p>Verify your email address to complete the signup and login into your account.</p>
+        <p>This link <b>expires in 1 hour</b>.</p>
+        <p>Press <a href="${currentUrl}user/verify/${_id}/${uniqueString}">here</a> to proceed.</p>`
+    };
+
+    //hash the uniqueString
+    const saltRounds= 10;
+    bcrypt.hash(uniqueString, saltRounds).then((hashedUniqueString) =>{
+        const newVerification = new UserVerification({
+            userId: _id,
+            uniqueString: hashedUniqueString,
+            createdAt: Date.now(),
+            expiresAt: Date.now() + 3600000, // 1 hour
+        });
+
+        newVerification.save()
+            .then(() => {
+                console.log("verification email sent successfully")
+                transporter.sendMail(mailOptions)
+                    .then(() => {
+                        res.json({
+                            status: "PENDING",
+                            message: "Verification email sent!",
+                        });
+                    })
+                    .catch((error) => {
+                        console.log("Error while sending")
+                        res.json({
+                            status: "FAILED",
+                            message: "Failed to send verification email!",
+                        });
+                    });
+            })
+            .catch((error) => {
+                console.log("Error while saving");
+                res.json({
+                    status: "FAILED",
+                    message: "An error occurred while saving the verification record!",
+                });
+            });
+    })
+        .catch((error) =>
+    {   console.log("Error while hashing");
+        res.json({
+            status: "FAILED",
+            message : "Error occured while hashing email data!",
+        });
+    }
+    )
+
+}
+
+//verify email
+Userrouter.get('/verify/:userId/:uniqueString', (req, res) => {
+    const { userId, uniqueString } = req.params;
+
+    UserVerification.findOne({ userId })
+        .then((record) => {
+            if (!record) {
+                res.json({ status: 'FAILED', message: 'Verification link expired or invalid.' });
+            } else {
+                bcrypt.compare(uniqueString, record.uniqueString).then((isMatch) => {
+                    if (isMatch) {
+                        User.updateOne({ _id: userId }, { verified: true })
+                            .then(() => {
+                                UserVerification.deleteOne({ userId })
+                                    .then(() => res.redirect('/login'))
+                                    .catch((err) => res.json({ status: 'FAILED', message: 'Error updating user.' }));
+                            })
+                            .catch((err) => res.json({ status: 'FAILED', message: 'Error updating user.' }));
+                    } else {
+                        res.json({ status: 'FAILED', message: 'Invalid verification link.' });
+                    }
+                });
+            }
+        })
+        .catch((err) => res.json({ status: 'FAILED', message: 'Error verifying user.' }));
+});
+
+
 //Signin
-Userrouter.post('/signin',(req,res) =>
+Userrouter.post('/login',(req,res) =>
 {
     let{email, password,} = req.body;
     email = email.trim();
