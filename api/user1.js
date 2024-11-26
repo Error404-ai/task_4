@@ -53,28 +53,28 @@ Userrouter.post('/signup', (req, res) => {
     dateofBirth = dateofBirth.trim();
     console.log("Recieved name :",name);
     if (name == "" || email == "" || password == "" || dateofBirth == "") {
-        res.json({
+        return res.status(404).json({
             status: "FAILED",
             message: "Empty input fields!"
         });
     }
     else if (!/^[a-zA-Z\s]*$/.test(name)) {
-        res.json({
+        return res.status(404).json({
             status: "FAILED",
             message: "Invalid name entered"
         })
     } else if (!/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
-        res.json({
+        return res.status(404).json({
             status: "FAILED",
             message: "Invalid email entered"
         })
     } else if (!new Date(dateofBirth).getTime()) {
-        res.json({
+        return res.status(404).json({
             status: "FAILED",
             message: "Invalid date of birth entered"
         })
     } else if (password.length < 8) {
-        res.json({
+        return res.status(404).json({
             status: "FAILED",
             message: "Password is too short!"
         })
@@ -82,7 +82,7 @@ Userrouter.post('/signup', (req, res) => {
         // Checking if user already exists
         User.find({ email }).then(result => {
             if (result.length) {
-                res.json(
+                return res.status(404).json(
                     {
                         status: "FAILED",
                         message: "User with the provided email already exists"
@@ -108,7 +108,7 @@ Userrouter.post('/signup', (req, res) => {
                     }
                     )
                         .catch(err => {
-                            res.json({
+                            return res.status(500).json({
                                 status: "FAILED",
                                 message: "An error Occured while saving user account!"
                             })
@@ -117,7 +117,7 @@ Userrouter.post('/signup', (req, res) => {
                 })
                     .catch(err => {
                         console.log(err);
-                        res.json({
+                        return res.status(500).json({
                        status: "FAILED",
                             message: "An error Occured while hashing password!"
                         })
@@ -126,7 +126,7 @@ Userrouter.post('/signup', (req, res) => {
             }
         }).catch(err => {
             console.log(err);
-            res.json({
+            return res.status(500).json({
                 status: "FAILED",
                 message: "An error Occured while checking for existing user!"
             })
@@ -173,7 +173,7 @@ const sendVerificationEmail = ({_id,email},res) =>
                     })
                     .catch((error) => {
                         console.log("Error while sending")
-                        res.json({
+                        return res.status(500).json({
                             status: "FAILED",
                             message: "Failed to send verification email!",
                         });
@@ -181,7 +181,7 @@ const sendVerificationEmail = ({_id,email},res) =>
             })
             .catch((error) => {
                 console.log("Error while saving");
-                res.json({
+                return res.status(500).json({
                     status: "FAILED",
                     message: "An error occurred while saving the verification record!",
                 });
@@ -189,7 +189,7 @@ const sendVerificationEmail = ({_id,email},res) =>
     })
         .catch((error) =>
     {   console.log("Error while hashing");
-        res.json({
+        return res.status(500).json({
             status: "FAILED",
             message : "Error occured while hashing email data!",
         });
@@ -205,7 +205,7 @@ Userrouter.get('/verify/:userId/:uniqueString', (req, res) => {
     UserVerification.findOne({ userId })
         .then((record) => {
             if (!record) {
-                res.json({ status: 'FAILED', message: 'Verification link expired or invalid.' });
+                return res.status(404).json({ status: 'FAILED', message: 'Verification link expired or invalid.' });
             } else {
                 bcrypt.compare(uniqueString, record.uniqueString).then((isMatch) => {
                     if (isMatch) {
@@ -213,16 +213,17 @@ Userrouter.get('/verify/:userId/:uniqueString', (req, res) => {
                             .then(() => {
                                 UserVerification.deleteOne({ userId })
                                     .then(() => res.redirect('/login'))
-                                    .catch((err) => res.json({ status: 'FAILED', message: 'Error updating user.' }));
+                                    .catch((err) =>  res.status(500).json({ status: 'FAILED', message: 'Error updating user.' }));
                             })
-                            .catch((err) => res.json({ status: 'FAILED', message: 'Error updating user.' }));
+                            .catch((err) =>  res.status(500).json({ status: 'FAILED', message: 'Error updating user.' }));
                     } else {
-                        res.json({ status: 'FAILED', message: 'Invalid verification link.' });
+                        return res.status(401).json({ status: 'FAILED', message: 'Invalid verification link.' });
                     }
                 });
             }
         })
-        .catch((err) => res.json({ status: 'FAILED', message: 'Error verifying user.' }));
+        .catch((err) => res.status(500).json({ status: 'FAILED', message: 'Error verifying user.' }));
+
 });
 
 
@@ -234,7 +235,7 @@ Userrouter.post('/login',(req,res) =>
     password = password.trim();
 
     if(email == "" || password == ""){
-        res.json({
+        return res.status(404).json({
     status : "FAILED",
     message : "Empty credentials supplied"
 })}
@@ -245,37 +246,48 @@ else{
     {
         if(data.length) {
             //user exists
-            const hashedPassword = data[0].password;
-            bcrypt.compare(password,hashedPassword).then(result => {
-             if(result){
-                res.json({
-                    status : "SUCCESS",
-                    message : "SIGNIN SUCCESSFULL",
-                    data : data
-                })
-            } else  {
-                res.json({
-                        status: "FAILED",
-                        message : "INVALID PASSWORD ENTERED!"
-                })
+
+
+            //check if user is verified
+            if(!data[0].verified){
+                return res.status(404).json ({
+                    status : "FAILED",
+                    message : "Email hasn;t been verified yet. Check your inbox",
+                });
             }
-        }) .catch(err =>
-        {
-            res.json({
-                status : "FAILED",
-                message : "An error occured while comparing passwords"
-            })
-        })
+            else {
+                const hashedPassword = data[0].password;
+                bcrypt.compare(password,hashedPassword).then(result => {
+                 if(result){
+                    res.json({
+                        status : "SUCCESS",
+                        message : "SIGNIN SUCCESSFULL",
+                        data : data
+                    });
+                } else  {
+                    return res.status(401).json({
+                            status: "FAILED",
+                            message : "INVALID PASSWORD ENTERED!"
+                    });
+                }
+            }) .catch(err =>
+            {
+                return res.status(500).json({
+                    status : "FAILED",
+                    message : "An error occured while comparing passwords"
+                });
+            });
+            }
         } else {
-            res.json({
+            return res.status(404).json({
                 status : "FAILED",
                 message : "Invalid credentials entered!"
-            })
+            });
         }
     })
     .catch(err =>
     {
-        res.json({
+        res.status(500).json({
             status : "FAILED",
             message : "An error occured while checking for existing user"
         })
