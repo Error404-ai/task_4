@@ -13,7 +13,7 @@ app.use(bodyParser());
 
 app.use('/user',Userrouter);
 
-app.use(express.static(path.join(__dirname, 'public')));
+// app.use(express.static(path.join(__dirname, 'public')));
 
 // Set up a route for your HTML file 
 app.get('/', (req, res) => {
