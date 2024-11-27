@@ -50,10 +50,11 @@ const bcrypt = require('bcrypt');
 //signup
 Userrouter.post('/signup', (req, res) => {
     let { name, email, password, dateofBirth } = req.body;
-    name = name.trim();
+    if((name && typeof name === 'string') && (email && typeof name === 'string') && (password && typeof name === 'string') && (dateofBirth && typeof name === 'date'))
+   { name = name.trim();
     email = email.trim();
     password = password.trim();
-    dateofBirth = dateofBirth.trim();
+    dateofBirth = dateofBirth.trim();}
     console.log("Recieved name :",name);
     if (name == "" || email == "" || password == "" || dateofBirth == "") {
         return res.status(404).json({
