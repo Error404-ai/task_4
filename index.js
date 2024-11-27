@@ -15,10 +15,7 @@ app.use('/user',Userrouter);
 
 // app.use(express.static(path.join(__dirname, 'public')));
 
-// Set up a route for your HTML file 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+
 
 connectDB();
 app.listen(port,() =>
