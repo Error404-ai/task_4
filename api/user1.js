@@ -73,7 +73,7 @@ Userrouter.post('/signup', (req, res) => {
             message: "Invalid email entered"
         })
     } else if (!new Date(dateofBirth).getTime()) {
-        return res.status(404).json({
+        return res.status(400).json({
             status: "FAILED",
             message: "Invalid date of birth entered"
         })
@@ -340,7 +340,7 @@ Userrouter.post("/requestPasswordReset",(req,res) =>
 
 //send password reset email
 const sendResetEmail = ({_id, email}, redirectUrl, res ) =>{
-     const resetString = uuidv4 + _id;
+     const resetString = uuidv4() + _id;
      //First, we clear all existing reset records
      PasswordReset.deleteMany({ userId : _id})
      .then(result => {
@@ -356,18 +356,18 @@ const sendResetEmail = ({_id, email}, redirectUrl, res ) =>{
            ` <p>We heard that you lost the password.</p><p>
            Don't worry,use the link below to reset it.</p>
             <p>This link <b>expires in 1 hour</b>.</p>
-            <p>Press <a href="${redirectUrl} + "/" + ${_id} + "/" + ${resetString}">here</a> to proceed.</p>`
+           <p>Press <a href="${redirectUrl}/${_id}/${resetString}">here</a> to proceed.</p>`
         };
        
         //hash the reset string
          const saltRounds = 10;
-         bcrypt.hash().then(hashedResetString =>{
+         bcrypt.hash(resetString, saltRounds).then(hashedResetString =>{
             //set values in password reset collection
             const newPasswordReset = new PasswordReset({
                   userId : _id,
                   uniqueString: hashedResetString,
                   createdAt: Date.now(),
-                  expiresAt: Date.now() + 3600000
+                  expiresAt: Date.now() + 3600000 //1 hour
             });
            newPasswordReset.save()
            .then(() => {
