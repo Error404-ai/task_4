@@ -46,17 +46,18 @@ transporter.verify((error,success) =>
 
 //Password Handler
 const bcrypt = require('bcrypt');
+const UserOTPVerification = require('../models/UserOTPVerification');
 
 //signup
 Userrouter.post('/signup', (req, res) => {
-    let { name, email, password, dateofBirth } = req.body;
+    let { name, email, password} = req.body;
     if((name && typeof name === 'string') && (email && typeof email === 'string') && (password && typeof password === 'string'))
    { name = name.trim();
     email = email.trim();
     password = password.trim();
-    // dateofBirth = dateofBirth.trim();}
+   }
     console.log("Recieved name :",name);
-    if (name == "" || email == "" || password == "" || dateofBirth == "") {
+    if (name == "" || email == "" || password == "") {
         return res.status(404).json({
             status: "FAILED",
             message: "Empty input fields!"
@@ -72,12 +73,8 @@ Userrouter.post('/signup', (req, res) => {
             status: "FAILED",
             message: "Invalid email entered"
         })}
-    // } else if (!new Date(dateofBirth).getTime()) {
-    //     return res.status(400).json({
-    //         status: "FAILED",
-    //         message: "Invalid date of birth entered"
-    //     })
-    } else if (password.length < 8) {
+
+     else if (password.length < 8) {
         return res.status(404).json({
             status: "FAILED",
             message: "Password is too short!"
@@ -101,14 +98,14 @@ Userrouter.post('/signup', (req, res) => {
                         name,
                         email,
                         password: hashedPassword,
-                        dateofBirth,
                         verified : false
                     });
 
                     newUser.save().then(result => {
                        //handle account verification
-                       console.log("User saved successfully:", result);
                        sendVerificationEmail(result,res);
+                    //    sendOTPVerificationEmail(result,res);
+                       
                     }
                     )
                         .catch(err => {
@@ -133,17 +130,16 @@ Userrouter.post('/signup', (req, res) => {
             return res.status(500).json({
                 status: "FAILED",
                 message: "An error Occured while checking for existing user!"
-            })
-        }
-        )
+            });
+        });
     }
-})
+});
 
 //send verification email
 const sendVerificationEmail = ({_id,email},res) =>
 {
     //url to be used in the email
-    const currentUrl = "http://localhost:5001/";
+    const currentUrl = "http://localhost:5500/";
     const uniqueString = uuidv4() + _id;
     const mailOptions ={
         from: process.env.AUTH_EMAIL,
@@ -166,13 +162,17 @@ const sendVerificationEmail = ({_id,email},res) =>
         });
 
         newVerification.save()
-            .then(() => {
+            .then( () => {
                 console.log("verification email sent successfully")
                 transporter.sendMail(mailOptions)
                     .then(() => {
                         res.json({
                             status: "PENDING",
                             message: "Verification email sent!",
+                            data : {
+                                userId : _id,
+                                email,
+                            },
                         });
                     })
                     .catch((error) => {
@@ -206,63 +206,57 @@ const sendVerificationEmail = ({_id,email},res) =>
 
 //verify email
 Userrouter.get('/verify/:userId/:uniqueString', (req, res) => {
-    const { userId, uniqueString } = req.params;
-
-    console.log("Received verification request:");
-    console.log("userId:", userId);
-    console.log("uniqueString:", uniqueString);
-
-    UserVerification.findOne({ userId })
-        .then((record) => {
-            if (!record) {
-                console.log("No verification record found for userId:", userId);
-                return res.status(404).json({ status: 'FAILED', message: 'Verification link invalid.' });
-            } else {
+    let { userId, uniqueString } = req.params;
+    
+       // Validate the presence of parameters
+        if (!userId || !uniqueString) {
+            console.error("Missing userId or uniqueString in request");
+            return res.status(400).json({ status: "FAILED", message: "Invalid verification link." });
+        }
+    
+        // Find the verification record
+        UserVerification.findOne({ userId })
+            .then((record) => {
+                if (!record) {
+                    console.log(`No verification record found for userId: ${userId}`);
+                    return res.status(404).json({ status: "FAILED", message: "Verification link invalid." });
+                }
+    
                 console.log("Verification record found:", record);
-
-                // Check expiration
+    
+                // Check if the verification link has expired
                 if (record.expiresAt < Date.now()) {
                     console.log("Verification record expired.");
-                    return res.status(400).json({ status: 'FAILED', message: 'Verification link has expired.' });
+                    return res.status(400).json({ status: "FAILED", message: "Verification link has expired." });
                 }
-
-                // Compare unique strings
-                bcrypt.compare(uniqueString, record.uniqueString).then((isMatch) => {
-                    console.log("Hash comparison result:", isMatch);
-
-                    if (isMatch) {
-                        User.updateOne({ _id: userId }, { verified: true })
-                            .then(() => {
-                                console.log("User verified successfully");
-                                UserVerification.deleteOne({ userId })
-                                    .then(() => {
-                                        console.log("Verification record deleted");
-                                        res.redirect('/login');
-                                    })
-                                    .catch((err) => {
-                                        console.error("Error deleting verification record:", err);
-                                        res.status(500).json({ status: 'FAILED', message: 'Error deleting verification record.' });
-                                    });
-                            })
-                            .catch((err) => {
-                                console.error("Error updating user:", err);
-                                res.status(500).json({ status: 'FAILED', message: 'Error updating user.' });
-                            });
-                    } else {
+    
+                // Compare the unique strings
+                return bcrypt.compare(uniqueString, record.uniqueString).then((isMatch) => {
+                    if (!isMatch) {
                         console.log("Invalid unique string provided.");
-                        res.status(401).json({ status: 'FAILED', message: 'Invalid verification link.' });
+                        return res.status(401).json({ status: "FAILED", message: "Invalid verification link." });
                     }
-                }).catch((err) => {
-                    console.error("Error comparing unique strings:", err);
-                    res.status(500).json({ status: 'FAILED', message: 'Error verifying user.' });
+    
+                    // Update user's verification status
+                    return User.updateOne({ _id: userId }, { verified: true })
+                        .then(() => {
+                            console.log("User verified successfully.");
+    
+                            // Delete the verification record
+                            return UserVerification.deleteOne({ userId });
+                        })
+                        .then(() => {
+                            console.log("Verification record deleted.");
+                            res.redirect("/login"); // Redirect to login page after successful verification
+                        });
                 });
-            }
-        })
-        .catch((err) => {
-            console.error("Error finding verification record:", err);
-            res.status(500).json({ status: 'FAILED', message: 'Error verifying user.' });
-        });
-});
+            })
+            .catch((err) => {
+                console.error("Error during verification process:", err);
+                res.status(500).json({ status: "FAILED", message: "An error occurred during verification." });
+            });
+    });
+    
 
 
 
@@ -366,13 +360,18 @@ Userrouter.post("/requestPasswordReset",(req,res) =>
         res.json({
             status : "FAILED",
             message : "An error occured while checking for existing user",
-        })
-    })
-})
+        });
+    });
+});
 
 //send password reset email
 const sendResetEmail = ({_id, email}, redirectUrl, res ) =>{
      const resetString = uuidv4() + _id;
+
+     console.log("Redirect URL:", redirectUrl);
+console.log("User ID:", _id);
+console.log("Reset String:", resetString);
+const encodedRedirectUrl = `${redirectUrl}/${_id}/${resetString}`;
      //First, we clear all existing reset records
      PasswordReset.deleteMany({ userId : _id})
      .then(result => {
@@ -384,11 +383,13 @@ const sendResetEmail = ({_id, email}, redirectUrl, res ) =>{
             from: process.env.AUTH_EMAIL,
             to: email,
             subject: "Password reset",
-            html :
-           ` <p>We heard that you lost the password.</p><p>
-           Don't worry,use the link below to reset it.</p>
-            <p>This link <b>expires in 1 hour</b>.</p>
-           <p>Press <a href="${redirectUrl}/${_id}/${resetString}">here</a> to proceed.</p>`
+            html: `
+              <p>We heard that you lost the password.</p>
+              <p>Don't worry, use the link below to reset it.</p>
+              <p>This link <b>expires in 1 hour</b>.</p>
+              <p>Press <a href="${encodedRedirectUrl}">here</a> to proceed.</p>
+            `
+            
         };
        
         //hash the reset string
