@@ -21,13 +21,13 @@ require('dotenv').config();
 
 //nodemailer transporter //this is not working
 let transporter = nodemailer.createTransport({
-    service: "gmail",
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
         user: process.env.AUTH_EMAIL,
-        pass: process.env.AUTH_PASS,
-    },
-    logger: true,
-    debug: true,
+        pass: process.env.AUTH_PASS
+    }
 });
 
 
@@ -50,11 +50,11 @@ const bcrypt = require('bcrypt');
 //signup
 Userrouter.post('/signup', (req, res) => {
     let { name, email, password, dateofBirth } = req.body;
-    if((name && typeof name === 'string') && (email && typeof name === 'string') && (password && typeof name === 'string') && (dateofBirth && typeof name === 'date'))
+    if((name && typeof name === 'string') && (email && typeof email === 'string') && (password && typeof password === 'string'))
    { name = name.trim();
     email = email.trim();
     password = password.trim();
-    dateofBirth = dateofBirth.trim();}
+    // dateofBirth = dateofBirth.trim();}
     console.log("Recieved name :",name);
     if (name == "" || email == "" || password == "" || dateofBirth == "") {
         return res.status(404).json({
@@ -71,12 +71,12 @@ Userrouter.post('/signup', (req, res) => {
         return res.status(404).json({
             status: "FAILED",
             message: "Invalid email entered"
-        })
-    } else if (!new Date(dateofBirth).getTime()) {
-        return res.status(400).json({
-            status: "FAILED",
-            message: "Invalid date of birth entered"
-        })
+        })}
+    // } else if (!new Date(dateofBirth).getTime()) {
+    //     return res.status(400).json({
+    //         status: "FAILED",
+    //         message: "Invalid date of birth entered"
+    //     })
     } else if (password.length < 8) {
         return res.status(404).json({
             status: "FAILED",
@@ -84,8 +84,8 @@ Userrouter.post('/signup', (req, res) => {
         })
     } else {
         // Checking if user already exists
-        User.find({ email }).then(result => {
-            if (result.length) {
+        User.findOne({ email }).then(result => {
+            if (result) {
                 return res.status(404).json(
                     {
                         status: "FAILED",
@@ -202,33 +202,68 @@ const sendVerificationEmail = ({_id,email},res) =>
 
 }
 
+
+
 //verify email
 Userrouter.get('/verify/:userId/:uniqueString', (req, res) => {
     const { userId, uniqueString } = req.params;
 
+    console.log("Received verification request:");
+    console.log("userId:", userId);
+    console.log("uniqueString:", uniqueString);
+
     UserVerification.findOne({ userId })
         .then((record) => {
             if (!record) {
-                return res.status(404).json({ status: 'FAILED', message: 'Verification link expired or invalid.' });
+                console.log("No verification record found for userId:", userId);
+                return res.status(404).json({ status: 'FAILED', message: 'Verification link invalid.' });
             } else {
+                console.log("Verification record found:", record);
+
+                // Check expiration
+                if (record.expiresAt < Date.now()) {
+                    console.log("Verification record expired.");
+                    return res.status(400).json({ status: 'FAILED', message: 'Verification link has expired.' });
+                }
+
+                // Compare unique strings
                 bcrypt.compare(uniqueString, record.uniqueString).then((isMatch) => {
+                    console.log("Hash comparison result:", isMatch);
+
                     if (isMatch) {
                         User.updateOne({ _id: userId }, { verified: true })
                             .then(() => {
+                                console.log("User verified successfully");
                                 UserVerification.deleteOne({ userId })
-                                    .then(() => res.redirect('/login'))
-                                    .catch((err) =>  res.status(500).json({ status: 'FAILED', message: 'Error updating user.' }));
+                                    .then(() => {
+                                        console.log("Verification record deleted");
+                                        res.redirect('/login');
+                                    })
+                                    .catch((err) => {
+                                        console.error("Error deleting verification record:", err);
+                                        res.status(500).json({ status: 'FAILED', message: 'Error deleting verification record.' });
+                                    });
                             })
-                            .catch((err) =>  res.status(500).json({ status: 'FAILED', message: 'Error updating user.' }));
+                            .catch((err) => {
+                                console.error("Error updating user:", err);
+                                res.status(500).json({ status: 'FAILED', message: 'Error updating user.' });
+                            });
                     } else {
-                        return res.status(401).json({ status: 'FAILED', message: 'Invalid verification link.' });
+                        console.log("Invalid unique string provided.");
+                        res.status(401).json({ status: 'FAILED', message: 'Invalid verification link.' });
                     }
+                }).catch((err) => {
+                    console.error("Error comparing unique strings:", err);
+                    res.status(500).json({ status: 'FAILED', message: 'Error verifying user.' });
                 });
             }
         })
-        .catch((err) => res.status(500).json({ status: 'FAILED', message: 'Error verifying user.' }));
-
+        .catch((err) => {
+            console.error("Error finding verification record:", err);
+            res.status(500).json({ status: 'FAILED', message: 'Error verifying user.' });
+        });
 });
+
 
 
 //Signin
@@ -245,57 +280,54 @@ Userrouter.post('/login', async(req,res) =>
 });
 }
 else{
-    //check if user exists
-    User.find({email})
-    .then(data => 
-    {
-        if(data.length) {
-            //user exists
-
-            //check if user is verified
-            if(!data[0].verified){
-                return res.status(404).json ({
-                    status : "FAILED",
-                    message : "Email hasn't been verified yet. Check your inbox",
-                });
-            }
-            else {
-                const hashedPassword = data[0].password;
-                bcrypt.compare(password,hashedPassword).then(result => {
-                 if(result){
-                    res.json({
-                        status : "SUCCESS",
-                        message : "SIGNIN SUCCESSFULL",
-                        data : data
-                    });
-                } else  {
-                    return res.status(401).json({
-                            status: "FAILED",
-                            message : "INVALID PASSWORD ENTERED!"
-                    });
-                }
-            }) .catch(err =>
-            {
-                return res.status(500).json({
-                    status : "FAILED",
-                    message : "An error occured while comparing passwords"
-                });
-            });
-            }
-        } else {
-            return res.status(404).json({
-                status : "FAILED",
-                message : "Invalid credentials entered!"
-            });
-        }
-    })
-    .catch(err =>
-    {
-        res.status(500).json({
-            status : "FAILED",
-            message : "An error occured while checking for existing user"
+ //check if user exists
+User.findOne({ email })
+.then(user => {
+    if (!user) {
+        // If no user is found
+        return res.status(404).json({
+            status: "FAILED",
+            message: "Invalid credentials entered!"
         });
-    } );
+    }
+
+    // Check if the user is verified
+    if (!user.verified) {
+        return res.status(404).json({
+            status: "FAILED",
+            message: "Email hasn't been verified yet. Check your inbox"
+        });
+    }
+
+    // Compare the password
+    bcrypt.compare(password, user.password)
+        .then(isMatch => {
+            if (isMatch) {
+                return res.json({
+                    status: "SUCCESS",
+                    message: "SIGNIN SUCCESSFUL",
+                    data: user // Send the user data, or any relevant details
+                });
+            } else {
+                return res.status(401).json({
+                    status: "FAILED",
+                    message: "INVALID PASSWORD ENTERED!"
+                });
+            }
+        })
+        .catch(err => {
+            return res.status(500).json({
+                status: "FAILED",
+                message: "An error occurred while comparing passwords"
+            });
+        });
+})
+.catch(err => {
+    return res.status(500).json({
+        status: "FAILED",
+        message: "An error occurred while checking for existing user"
+    });
+});
 }
 });
 
