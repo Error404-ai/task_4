@@ -100,9 +100,10 @@ Userrouter.post('/signup', (req, res) => {
                         password: hashedPassword,
                         verified : false
                     });
-
+                    
                     newUser.save().then(result => {
                        //handle account verification
+                    //    console.log("hello",result._id);
                        sendVerificationEmail(result,res);
                     //    sendOTPVerificationEmail(result,res);
                        
@@ -140,6 +141,7 @@ const sendVerificationEmail = ({_id,email},res) =>
 {
     //url to be used in the email
     const currentUrl = "http://localhost:5500/";
+    // console.log("idesss",_id);
     const uniqueString = uuidv4() + _id;
     const mailOptions ={
         from: process.env.AUTH_EMAIL,
@@ -148,17 +150,18 @@ const sendVerificationEmail = ({_id,email},res) =>
         html :
        ` <p>Verify your email address to complete the signup and login into your account.</p>
         <p>This link <b>expires in 1 hour</b>.</p>
-        <p>Press <a href="${currentUrl}user/verify/${_id}/${uniqueString}">here</a> to proceed.</p>`
+        <p>Press <a href="${currentUrl}user/verify/${uniqueString}">here</a> to proceed.</p>`
     };
 
     //hash the uniqueString
     const saltRounds= 10;
     bcrypt.hash(uniqueString, saltRounds).then((hashedUniqueString) =>{
+        console.log("hashedUniqueString",hashedUniqueString);
         const newVerification = new UserVerification({
             userId: _id,
             uniqueString: hashedUniqueString,
             createdAt: Date.now(),
-            expiresAt: Date.now() + 3600000, // 1 hour
+            expiresAt: new Date(Date.now() + 3600000) // 1 hour
         });
 
         newVerification.save()
@@ -202,61 +205,62 @@ const sendVerificationEmail = ({_id,email},res) =>
 
 }
 
-
-
 //verify email
-Userrouter.get('/verify/:userId/:uniqueString', (req, res) => {
-    let { userId, uniqueString } = req.params;
+Userrouter.get('/verify/:uniqueString', async (req, res) => {
+    const { uniqueString } = req.params;
+    console.log("Received uniqueString from URL:", uniqueString);
+
+
+    try {
+        const record = await UserVerification.findOne({ uniqueString : uniqueString }); // Retrieve verification record
+        console.log("Record retrieved from DB:", record);
     
-       // Validate the presence of parameters
-        if (!userId || !uniqueString) {
-            console.error("Missing userId or uniqueString in request");
-            return res.status(400).json({ status: "FAILED", message: "Invalid verification link." });
-        }
-    
-        // Find the verification record
-        UserVerification.findOne({ userId })
-            .then((record) => {
-                if (!record) {
-                    console.log(`No verification record found for userId: ${userId}`);
-                    return res.status(404).json({ status: "FAILED", message: "Verification link invalid." });
-                }
-    
-                console.log("Verification record found:", record);
-    
-                // Check if the verification link has expired
-                if (record.expiresAt < Date.now()) {
-                    console.log("Verification record expired.");
-                    return res.status(400).json({ status: "FAILED", message: "Verification link has expired." });
-                }
-    
-                // Compare the unique strings
-                return bcrypt.compare(uniqueString, record.uniqueString).then((isMatch) => {
-                    if (!isMatch) {
-                        console.log("Invalid unique string provided.");
-                        return res.status(401).json({ status: "FAILED", message: "Invalid verification link." });
-                    }
-    
-                    // Update user's verification status
-                    return User.updateOne({ _id: userId }, { verified: true })
-                        .then(() => {
-                            console.log("User verified successfully.");
-    
-                            // Delete the verification record
-                            return UserVerification.deleteOne({ userId });
-                        })
-                        .then(() => {
-                            console.log("Verification record deleted.");
-                            res.redirect("/login"); // Redirect to login page after successful verification
-                        });
-                });
-            })
-            .catch((err) => {
-                console.error("Error during verification process:", err);
-                res.status(500).json({ status: "FAILED", message: "An error occurred during verification." });
+        if (!record) {
+            return res.status(404).json({
+                status: "FAILED",
+                message: "Verification link is invalid.",
             });
+        }
+
+        console.log("Current Time (Unix):", Date.now());
+        console.log("Expires At (Unix):", new Date(record.expiresAt).getTime());
+        console.log("Expires At (ISO):", record.expiresAt);
+        // Compare expiration time with current time
+        if (new Date(record.expiresAt).getTime() < Date.now()) {
+            await UserVerification.deleteOne({ userId: record.userId }); // Cleanup expired record
+            return res.status(400).json({
+                status: "FAILED",
+                message: "Verification link has expired.",
+            });
+        }
+
+         console.log("Unique string from URL:", uniqueString);
+        console.log("Hashed unique string from DB:", record.uniqueString);
+        
+        // Compare unique string with the hashed value
+        const isMatch = await bcrypt.compare(uniqueString, record.uniqueString);
+      if (!isMatch) {
+    return res.status(401).json({
+        status: "FAILED",
+        message: "Invalid verification link.",
     });
-    
+      }
+
+        // Update user's verification status
+        await User.updateOne({ _id: record.userId }, { verified: true });
+
+        // Delete the verification record
+        await UserVerification.deleteOne({ userId: record.userId });
+
+        res.redirect("/login");
+    } catch (err) {
+        console.error("Error during verification process:", err);
+        res.status(500).json({
+            status: "FAILED",
+            message: "An error occurred during verification.",
+        });
+    }
+});
 
 
 
@@ -388,8 +392,7 @@ const encodedRedirectUrl = `${redirectUrl}/${_id}/${resetString}`;
               <p>Don't worry, use the link below to reset it.</p>
               <p>This link <b>expires in 1 hour</b>.</p>
               <p>Press <a href="${encodedRedirectUrl}">here</a> to proceed.</p>
-            `
-            
+            `    
         };
        
         //hash the reset string
@@ -449,3 +452,6 @@ const encodedRedirectUrl = `${redirectUrl}/${_id}/${resetString}`;
 
 
 module.exports = Userrouter;
+
+//localhost:5500/user/requestPasswordReset/674ca123d07dff4f89bfea47/27095f4f-f7af-4eaf-a8bf-61f4167dc211674ca123d07dff4f89bfea47
+
