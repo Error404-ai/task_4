@@ -210,11 +210,19 @@ Userrouter.get('/verify/:uniqueString', async (req, res) => {
     const { uniqueString } = req.params;
     console.log("Received uniqueString from URL:", uniqueString);
 
-
     try {
-        const record = await UserVerification.findOne({ uniqueString : uniqueString }); // Retrieve verification record
-        console.log("Record retrieved from DB:", record);
-    
+        // Retrieve all records (or narrow it down if possible by another identifier like userId)
+        const records = await UserVerification.find();
+        let record = null;
+
+        // Compare the hashed unique string with the received one
+        for (const rec of records) {
+            if (await bcrypt.compare(uniqueString, rec.uniqueString)) {
+                record = rec;
+                break;
+            }
+        }
+
         if (!record) {
             return res.status(404).json({
                 status: "FAILED",
@@ -222,10 +230,9 @@ Userrouter.get('/verify/:uniqueString', async (req, res) => {
             });
         }
 
-        console.log("Current Time (Unix):", Date.now());
-        console.log("Expires At (Unix):", new Date(record.expiresAt).getTime());
-        console.log("Expires At (ISO):", record.expiresAt);
-        // Compare expiration time with current time
+        console.log("Record retrieved from DB:", record);
+
+        // Check if the link has expired
         if (new Date(record.expiresAt).getTime() < Date.now()) {
             await UserVerification.deleteOne({ userId: record.userId }); // Cleanup expired record
             return res.status(400).json({
@@ -233,18 +240,6 @@ Userrouter.get('/verify/:uniqueString', async (req, res) => {
                 message: "Verification link has expired.",
             });
         }
-
-         console.log("Unique string from URL:", uniqueString);
-        console.log("Hashed unique string from DB:", record.uniqueString);
-        
-        // Compare unique string with the hashed value
-        const isMatch = await bcrypt.compare(uniqueString, record.uniqueString);
-      if (!isMatch) {
-    return res.status(401).json({
-        status: "FAILED",
-        message: "Invalid verification link.",
-    });
-      }
 
         // Update user's verification status
         await User.updateOne({ _id: record.userId }, { verified: true });
@@ -258,11 +253,9 @@ Userrouter.get('/verify/:uniqueString', async (req, res) => {
         res.status(500).json({
             status: "FAILED",
             message: "An error occurred during verification.",
-        });
-    }
+    });
+}
 });
-
-
 
 //Signin
 Userrouter.post('/login', async(req,res) =>
