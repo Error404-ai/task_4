@@ -443,7 +443,7 @@ const encodedRedirectUrl = `${redirectUrl}/${_id}/${resetString}`;
      })
 }
 
-Userrouter.post("/resetPassword/:userId/:resetString", async (req, res) => {
+Userrouter.post("/requestPasswordReset/:userId/:resetString", async (req, res) => {
     const { userId, resetString } = req.params;
     const { newPassword,confirmPassword } = req.body;
   
