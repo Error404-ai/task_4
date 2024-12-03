@@ -90,7 +90,6 @@ Userrouter.post('/signup', (req, res) => {
                     })
             } else {
                 //Try to create new user
-
                 //password handling
                 const saltRounds = 10;
                 bcrypt.hash(password, saltRounds).then(hashedPassword => {
@@ -140,7 +139,7 @@ Userrouter.post('/signup', (req, res) => {
 const sendVerificationEmail = ({_id,email},res) =>
 {
     //url to be used in the email
-    const currentUrl = "http://localhost:5500/";
+    const currentUrl = "https://task-4-0pfy.onrender.com/";
     // console.log("idesss",_id);
     const uniqueString = uuidv4() + _id;
     const mailOptions ={
