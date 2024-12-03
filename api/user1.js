@@ -443,91 +443,106 @@ const encodedRedirectUrl = `${redirectUrl}/${_id}/${resetString}`;
      })
 }
 
-//validating password reset email
-Userrouter.get("/requestPasswordReset/:userId/:resetString", async (req, res) => {
+Userrouter.post("/resetPassword/:userId/:resetString", async (req, res) => {
     const { userId, resetString } = req.params;
-
-    try {
-        const record = await PasswordReset.findOne({userId});
-
-        if (!record) {
-            return res.status(404).json({
-                status: "FAILED",
-                message: "Invalid or expired password reset link.",
-            });
-        }
-
-        if (new Date(record.expiresAt).getTime() < Date.now()) {
-            await PasswordReset.deleteOne({ userId });
-
-            return res.status(400).json({
-                status: "FAILED",
-                message: "Password reset link has expired.",
-            });
-        }
-
-        const isMatch = await bcrypt.compare(resetString, record.uniqueString);
-
-        if (!isMatch) {
-            return res.status(401).json({
-                status: "FAILED",
-                message: "Invalid password reset link.",
-            });
-        }  return res.redirect('/resetPassword');
-
-        // return res.json({
-        //     status: "SUCCESS",
-        //     message: "Password reset link is valid. Proceed to reset your password.",
-        // });
-    } 
-    catch (error) {
-        console.error("Error during password reset validation:", error);
-        return res.status(500).json({
-            status: "FAILED",
-            message: "An error occurred during password reset validation.",
-        });
+    const { newPassword,confirmPassword } = req.body;
+  
+    if (!newPassword || !confirmPassword) {
+      return res.status(400).json({
+        status: "FAILED",
+        message: "New password and confirmation password are required.",
+      });
     }
-});
-
-//Password reset submission endpoint
-Userrouter.post("/resetPassword", async (req, res) => {
-    const { userId, newPassword } = req.body;
-
+  
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        status: "FAILED",
+        message: "Passwords do not match.",
+      });
+    }
+  
     try {
-        const user = await User.findById(userId);
-
-        if (!user) {
-            return res.status(404).json({
-                status: "FAILED",
-                message: "User not found.",
-            });
-        }
-
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-        await User.updateOne({ _id: userId }, { password: hashedPassword });
-
-        // Delete password reset record
-        try {
-            await PasswordReset.deleteOne({ userId });
-        } catch (error) {
-            console.error("Error deleting password reset record:", error);
-        }
-        
-
-        return res.json({
-            status: "SUCCESS",
-            message: "Password has been reset successfully!",
+      // Check if the reset link exists
+      const resetRecord = await PasswordReset.findOne({ userId });
+  
+      if (!resetRecord) {
+        return res.status(404).json({
+          status: "FAILED",
+          message: "Invalid or expired reset link.",
         });
+      }
+  
+      // Check if the reset link has expired
+      if (Date.now() > resetRecord.expiresAt) {
+        await PasswordReset.deleteOne({ userId }).catch((error) => {
+          console.error(error);
+          return res.status(500).json({
+            status: "FAILED",
+            message: "An error occurred while deleting expired reset record.",
+          });
+        });
+  
+        return res.status(400).json({
+          status: "FAILED",
+          message: "Reset link has expired.",
+        });
+      }
+  
+      // Compare reset string
+      const isMatch = await bcrypt.compare(resetString, resetRecord.uniqueString).catch((error) => {
+        console.error(error);
+        return res.status(500).json({
+          status: "FAILED",
+          message: "An error occurred while comparing the reset string.",
+        });
+      });
+  
+      if (!isMatch) {
+        return res.status(400).json({
+          status: "FAILED",
+          message: "Invalid reset link.",
+        });
+      }
+  
+      // Hash the new password and update it
+      const hashedPassword = await bcrypt.hash(newPassword, 10).catch((error) => {
+        console.error(error);
+        return res.status(500).json({
+          status: "FAILED",
+          message: "An error occurred while hashing the new password.",
+        });
+      });
+  
+      await User.updateOne({ _id: userId }, { password: hashedPassword }).catch((error) => {
+        console.error(error);
+        return res.status(500).json({
+          status: "FAILED",
+          message: "An error occurred while updating the password.",
+        });
+      });
+  
+      // Delete the password reset record after successful password change
+      await PasswordReset.deleteOne({ userId }).catch((error) => {
+        console.error(error);
+        return res.status(500).json({
+          status: "FAILED",
+          message: "An error occurred while deleting the password reset record.",
+        });
+      });
+  
+      res.status(200).json({
+        status: "SUCCESS",
+        message: "Password reset successfully.",
+      });
+  
     } catch (error) {
-        console.error("Error during password reset submission:", error);
-        return res.status(500).json({
-            status: "FAILED",
-            message: "An error occurred while resetting the password.",
-        });
+      console.error(error);
+      return res.status(500).json({
+        status: "FAILED",
+        message: "An error occurred while resetting the password.",
+      });
     }
-});
-
+  });
 
 
 
