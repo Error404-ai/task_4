@@ -46,7 +46,7 @@ transporter.verify((error,success) =>
 
 //Password Handler
 const bcrypt = require('bcrypt');
-const UserOTPVerification = require('../models/UserOTPVerification');
+// const UserOTPVerification = require('../models/UserOTPVerification');
 
 //signup
 Userrouter.post('/signup', (req, res) => {
@@ -99,7 +99,7 @@ Userrouter.post('/signup', (req, res) => {
                         password: hashedPassword,
                         verified : false
                     });
-                    
+                    module.exports = newUser;
                     newUser.save().then(result => {
                        //handle account verification
                     //    console.log("hello",result._id);
@@ -162,6 +162,7 @@ const sendVerificationEmail = ({_id,email},res) =>
             createdAt: Date.now(),
             expiresAt: new Date(Date.now() + 3600000) // 1 hour
         });
+        module.exports = newVerification;
 
         newVerification.save()
             .then( () => {
@@ -201,8 +202,10 @@ const sendVerificationEmail = ({_id,email},res) =>
         });
     }
     )
-
+   
 }
+
+
 
 //verify email
 Userrouter.get('/verify/:uniqueString', async (req, res) => {
@@ -271,7 +274,7 @@ Userrouter.post('/login', async(req,res) =>
 }
 else{
  //check if user exists
-User.findOne({ email })
+        User.findOne({ email })
 .then(user => {
     if (!user) {
         // If no user is found
@@ -444,6 +447,7 @@ const encodedRedirectUrl = `${redirectUrl}/${_id}/${resetString}`;
 
 Userrouter.post("/requestPasswordReset/:userId/:resetString", async (req, res) => {
     const { userId, resetString } = req.params;
+    // console.log("mai yha hu",userId);
     const { newPassword,confirmPassword } = req.body;
   
     if (!newPassword || !confirmPassword) {

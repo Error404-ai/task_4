@@ -2,7 +2,7 @@
   "name": "login_server",
   "version": "1.0.0",
   "description": "Backend for a login system",
-  "main": "login.js",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -18,8 +18,10 @@
     "express": "^4.21.1",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
+    "modules": "^0.4.0",
     "mongodb": "^6.11.0",
     "mongoose": "^8.8.2",
+    "node": "^22.12.0",
     "nodemailer": "^6.9.16",
     "nodemon": "^3.1.7",
     "uuid": "^11.0.3"

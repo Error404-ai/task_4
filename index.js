@@ -7,18 +7,20 @@ const app = express();
 const path = require('path');
 const port = 5500;
 const Userrouter = require('./api/user1');
+const router = require('./api/music');
 
 const cors = require('cors');
 app.use(cors());
 
-//For acceppting post form data
+//For accepting post form data
 const bodyParser = require('express').json;
 app.use(bodyParser());
 
 app.use('/user',Userrouter);
+app.use('/',router);
 
 // app.use(express.static(path.join(__dirname, 'public')));
-
+app.use('/uploads', express.static('uploads'));
 
 
 connectDB();
