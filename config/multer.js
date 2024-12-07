@@ -12,7 +12,7 @@ console.log(path.resolve('uploads/'));
 // Configure storage
 const storage = multer.diskStorage({
   destination: (_, file, cb) => {
-    cb(null, 'uploadDir'); 
+    cb(null, '/uploads'); 
   },
   filename: (_, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);

@@ -2,7 +2,7 @@ const express = require('express');
 const Song = require('../models/song.js');
 const ReferencedUser = require('../models/userprofile.js'); 
 const Playlist = require('../models/playlist.js');
-const UserVerification = require('C:/Users/tanis/OneDrive/Desktop/task4/task_4/models/UserVerification');
+const UserVerification = require('../models/UserVerification.js');
 const router = express.Router();
 
 // Route to add a new referenced user
