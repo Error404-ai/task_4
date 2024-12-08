@@ -13,20 +13,10 @@ const SongSchema = new mongoose.Schema({
     trim: true,
     maxlength: 50,
   },
-  album: {
-    type: String,
-    trim: true,
-    maxlength: 50,
-  },
-  genre: {
-    type: String,
-    trim: true,
-    maxlength: 30,
-  },
   duration: {
     type: Number, // Duration in seconds
   },
-  imageUrl: {
+  image: {
     type: String,
     required: true, // Mark as required if every song must have an image
   },
