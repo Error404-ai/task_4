@@ -9,11 +9,6 @@ const playlistSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'ReferencedUser',  // Reference to the User model
-    required: true,
-  },
   songs: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Song',  // Reference to the Song model 

@@ -10,6 +10,9 @@ const UserVerification = require('./../models/UserVerification');
 //mongodb userverification model
 const PasswordReset = require('./../models/PasswordReset');
 
+//referenced model
+const ReferencedUser = require('../models/userprofile')
+
 //email handler
 const nodemailer = require('nodemailer');
 
@@ -99,7 +102,6 @@ Userrouter.post('/signup', (req, res) => {
                         password: hashedPassword,
                         verified : false
                     });
-                    module.exports = newUser;
                     newUser.save().then(result => {
                        //handle account verification
                     //    console.log("hello",result._id);
@@ -245,7 +247,7 @@ Userrouter.get('/verify/:uniqueString', async (req, res) => {
 
         // Update user's verification status
         await User.updateOne({ _id: record.userId }, { verified: true });
-
+    
         // Delete the verification record
         await UserVerification.deleteOne({ userId: record.userId });
 
@@ -258,6 +260,7 @@ Userrouter.get('/verify/:uniqueString', async (req, res) => {
     });
 }
 });
+
 
 //Signin
 Userrouter.post('/login', async(req,res) =>
@@ -282,6 +285,7 @@ else{
             status: "FAILED",
             message: "Invalid credentials entered!"
         });
+      
     }
 
     // Check if the user is verified

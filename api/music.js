@@ -8,7 +8,7 @@ const router = express.Router();
 const upload = require('../config/multer.js');
 
 //Api to add multiple songs
-router.post('/songs', upload.array('images', 12), async (req, res) => {
+router.post('/songs', upload.array('images', 14), async (req, res) => {
   try {
     console.log("Raw Songs Received:", req.body.songs); // Log raw `songs`
     const songsString = req.body.songs;
@@ -35,6 +35,9 @@ router.post('/songs', upload.array('images', 12), async (req, res) => {
         imageFilesLength: req.files.length,
       });
     }
+
+    console.log(songData);
+    
 
     // Helper function to convert "mm:ss" into total seconds
     function convertTimeStringToSeconds(timeString) {
@@ -87,6 +90,237 @@ router.get('/songs/search', async (req, res) => {
   }
 });
 
+// Create a new playlist
+router.post('/createOrFind', async (req, res) => {
+  try {
+    const { newPlaylist } = req.body; // Extract the playlist name
+
+    let playlist = await Playlist.findOne({ name: newPlaylist });
+
+    if (!playlist) {
+      playlist = new Playlist({
+        name: newPlaylist,
+        description: ' ',
+      });
+
+      await playlist.save();
+      return res.status(201).json({ message: 'Playlist created successfully', playlist });
+    }
+    res.status(200).json({ message: 'Playlist found', playlist });
+  } catch (error) {
+    res.status(500).json({ message: 'Error creating or finding playlist', error });
+  }
+});
+
+
+// Get all playlists
+router.get('/all', async (req, res) => {
+  try {
+    const playlists = await Playlist.find().populate('songs');
+    res.status(200).json(playlists);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching playlists', error });
+  }
+});
+
+//Add a song to the user's existing Playlist
+router.post('/addToPlaylist', async (req, res) => {
+  try {
+    const { playlistId, songId } = req.body;
+
+    const playlist = await Playlist.findById(playlistId);
+
+    if (!playlist) {
+      return res.status(404).json({ message: 'Playlist not found' });
+    }
+
+    const song = await Song.findById(songId);
+    if (!song) {
+      return res.status(404).json({ message: 'Song not found' });
+    }
+
+    if (playlist.songs.includes(songId)) {
+      return res.status(400).json({ message: 'Song already exists in playlist' });
+    }
+
+    playlist.songs.push(songId);
+    const updatedPlaylist = await playlist.save();
+
+    res.status(200).json({ message: 'Song added to playlist', playlist: updatedPlaylist });
+  } catch (error) {
+    res.status(500).json({ message: 'Error adding song to playlist', error });
+  }
+});
+
+router.get('/profile', async (req, res) => {
+  try {
+    if (!req.session || !req.session.userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const user = await User.findById(req.session.userId);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { name, email, profilePicture } = user;
+
+    return res.status(200).json({ name, email, profilePicture });
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// router.post('/user/createOrFind', async (req, res) => {
+//   try {
+//     const { email, name } = req.body;
+//     if (!email || !name) {
+//       return res.status(400).json({ message: 'Email and name are required' });
+//     }
+
+//     // Check if user already exists
+//     let user = await ReferencedUser.findOne({ email });
+//     if (!user) {
+//       user = new ReferencedUser({
+//         email,
+//         name,
+//         playlists: [],
+//         profilePicture: '', // Default empty profile picture
+//       });
+
+//       await user.save();
+
+//       return res.status(201).json({ message: 'User created successfully', user });
+//     }
+
+//     res.status(200).json({ message: 'User found', user });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error finding or creating user', error });
+//   }
+// });
+
+// router.put('/profile/picture', async (req, res) => {
+//   try {
+//     const { email, picture } = req.body; // `email` identifies the user, `picture` contains base64 image data
+
+//     if (!picture) {
+//       return res.status(400).json({ message: 'Profile picture is required' });
+//     }
+
+//     // Find the user
+//     const user = await ReferencedUser.findOne({ email });
+
+//     if (!user) {
+//       return res.status(404).json({ message: 'User not found' });
+//     }
+
+//     // Upload image to Cloudinary
+//     const uploadResponse = await cloudinary.uploader.upload(picture, {
+//       folder: 'profile_pictures',
+//     });
+//     user.profilePicture = uploadResponse.secure_url;
+//     const updatedUser = await user.save();
+
+//     res.status(200).json({
+//       message: 'Profile picture updated successfully',
+//       profilePicture: updatedUser.profilePicture,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error uploading profile picture', error });
+//   }
+// });
+
+// //fetching user profile
+// router.get('/profile', async (req, res) => {
+//   try {
+//     const { email } = req.query;
+
+//     const userProfile = await ReferencedUser.findOne({ email })
+//       .populate('playlists')
+//       .exec();
+
+//     if (!userProfile) {
+//       return res.status(404).json({ message: 'User profile not found' });
+//     }
+
+//     res.status(200).json(userProfile);
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error fetching profile', error });
+//   }
+// });
+
+// //update profile
+// router.put('/profile', async (req, res) => {
+//   try {
+//     const { email, name, newEmail, profilePicture } = req.body;
+
+//     const userProfile = await ReferencedUser.findOne({ email });
+
+//     if (!userProfile) {
+//       return res.status(404).json({ message: 'User profile not found' });
+//     }
+
+//     if (name) userProfile.name = name;
+//     if (newEmail) userProfile.email = newEmail; // Update email if provided
+
+//     if (profilePicture) {
+//       const uploadResponse = await cloudinary.uploader.upload(profilePicture, {
+//         folder: 'profile_pictures',
+//       });
+//       userProfile.profilePicture = uploadResponse.secure_url;
+//     }
+
+//     const updatedProfile = await userProfile.save();
+//     res.status(200).json({ message: 'Profile updated successfully', profile: updatedProfile });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Error updating profile', error });
+//   }
+// });
 
 
 
