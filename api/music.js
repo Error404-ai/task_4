@@ -152,29 +152,44 @@ router.post('/addToPlaylist', async (req, res) => {
   }
 });
 
+const User = require('../models/user.js');
 router.get('/profile', async (req, res) => {
   try {
-    if (!req.session || !req.session.userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+      // Extract user identifier (e.g., userID) from the request
+      const userId = req.query.userId; 
 
-    const user = await User.findById(req.session.userId);
+      if (!userId) {
+          return res.status(400).json({ message: 'User ID is required' });
+      }
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+      // Fetch user details from the database
+      const user = await User.findById(userId).select('name email');
+      if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+      }
 
-    const { name, email, profilePicture } = user;
-
-    return res.status(200).json({ name, email, profilePicture });
+      // Send user details as response
+      res.status(200).json({ name: user.name, email: user.email });
   } catch (error) {
-    console.error('Error fetching profile:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ message: 'Server error', error });
   }
 });
 
+router.delete('/delete-account', async (req, res) => {
+  const { userId } = req.body;
 
+  try {
+      // Delete user account
+      const user = await User.findByIdAndDelete(userId);
+      if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+      }
 
+      res.status(200).json({ message: 'Account deleted successfully' });
+  } catch (error) {
+      res.status(500).json({ message: 'Error deleting account', error });
+  }
+});
 
 
 

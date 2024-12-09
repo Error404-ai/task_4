@@ -11,6 +11,7 @@ const router = require('./api/music');
 
 const cors = require('cors');
 app.use(cors());
+app.options('*', cors());
 
 //For accepting post form data
 const bodyParser = require('express').json;
