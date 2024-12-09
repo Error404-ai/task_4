@@ -10,8 +10,8 @@ const Userrouter = require('./api/user1');
 const router = require('./api/music');
 
 const cors = require('cors');
-app.use(cors());
-app.options('*', cors());
+// app.use(cors());
+app.use(cors({ origin: '*'}));
 
 //For accepting post form data
 const bodyParser = require('express').json;
