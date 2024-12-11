@@ -1,36 +1,57 @@
 const express = require('express');
-const Song = require('../models/song.js');
-const ReferencedUser = require('../models/userprofile.js'); 
-const Playlist = require('../models/playlist.js');
-const UserVerification = require('../models/UserVerification.js');
 const router = express.Router();
-
-const { uploadImages, uploadAudios } = require('../config/multer.js');
-
+const cloudinary = require('../config/cloudinary');
 const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const Song = require('../models/Song');
 
-// Helper function to convert "mm:ss" into total seconds
-function convertTimeStringToSeconds(timeString) {
-  if (!timeString) return 0; // Handle edge cases
-  const [minutes, seconds] = timeString.split(':');
-  return parseInt(minutes) * 60 + parseInt(seconds);
-}
+// Create a local storage for temporary file storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../uploads');
+    
+    // Create uploads directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)){
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  }
+});
 
-const upload = multer().fields([
+const upload = multer({ storage: storage }).fields([
   { name: 'images', maxCount: 26 },
   { name: 'audios', maxCount: 26 }
 ]);
 
+// Helper function to convert "mm:ss" into total seconds
+function convertTimeStringToSeconds(timeString) {
+  if (!timeString) return 0;
+  const [minutes, seconds] = timeString.split(':');
+  return parseInt(minutes) * 60 + parseInt(seconds);
+}
+
 router.post('/songs', upload, async (req, res) => {
   try {
-    console.log('req.files:', req.files); // Log the uploaded files for debugging
-
     const songsString = req.body.songs;
     const { images, audios } = req.files;
+
+    // Detailed logging for debugging
+    console.log('Received body:', req.body);
+    console.log('Received files:', req.files);
 
     if (!songsString || !images || !audios) {
       return res.status(400).json({
         message: 'Invalid request. Ensure songs, images, and audios are provided.',
+        details: {
+          songsString: !!songsString,
+          imagesCount: images ? images.length : 'No images',
+          audiosCount: audios ? audios.length : 'No audios'
+        }
       });
     }
 
@@ -40,7 +61,7 @@ router.post('/songs', upload, async (req, res) => {
     } catch (error) {
       return res.status(400).json({
         message: 'Error parsing JSON string',
-        error,
+        error: error.message,
       });
     }
 
@@ -48,38 +69,71 @@ router.post('/songs', upload, async (req, res) => {
       songData.length !== images.length ||
       songData.length !== audios.length
     ) {
-      console.error('Mismatch in counts');
       return res.status(400).json({
         message: 'Mismatch between number of songs, images, and audios.',
+        details: {
+          songDataLength: songData.length,
+          imagesLength: images.length,
+          audiosLength: audios.length
+        }
       });
     }
 
-    const newSongs = songData.map((song, index) => {
-      const imageFile = req.files.images?.[index];
-      const audioFile = req.files.audios?.[index];
+    // Cloudinary upload for images and audios
+    const imageUploadPromises = images.map((file, index) => 
+      cloudinary.uploader.upload(file.path, { 
+        folder: 'songs/images',
+        public_id: `image-${Date.now()}-${index}`
+      })
+    );
+    const audioUploadPromises = audios.map((file, index) => 
+      cloudinary.uploader.upload(file.path, { 
+        folder: 'songs/audios', 
+        resource_type: 'video',
+        public_id: `audio-${Date.now()}-${index}`
+      })
+    );
 
-      if (!imageFile || !audioFile) {
-        console.error(`Invalid file at index ${index}`);
-        throw new Error(`Invalid file paths at index ${index}`);
+    const [uploadedImages, uploadedAudios] = await Promise.all([
+      Promise.all(imageUploadPromises),
+      Promise.all(audioUploadPromises)
+    ]);
+
+    // Create new song objects with Cloudinary URLs
+    const newSongs = songData.map((song, index) => {
+      // Ensure we have valid Cloudinary URLs
+      const imageUrl = uploadedImages[index]?.secure_url;
+      const audioUrl = uploadedAudios[index]?.secure_url;
+
+      if (!imageUrl || !audioUrl) {
+        throw new Error(`Missing image or audio URL for song: ${song.title} at index ${index}`);
       }
 
       return {
         title: song.title,
         artist: song.artist,
         duration: convertTimeStringToSeconds(song.duration),
-        image: imageFile?.path,
-        audio: audioFile?.path,
+        image: imageUrl,
+        audio: audioUrl,
       };
     });
 
-    console.log('Songs to be inserted:', newSongs);
-
+    // Insert songs into database
     const savedSongs = await Song.insertMany(newSongs);
+
+    // Clean up temporary files
+    [...images, ...audios].forEach(file => {
+      fs.unlinkSync(file.path);
+    });
 
     res.status(201).json({ message: 'Songs added successfully!', songs: savedSongs });
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ message: 'Failed to upload songs', error });
+    console.error('Comprehensive Error:', error);
+    res.status(500).json({ 
+      message: 'Failed to upload songs', 
+      error: error.message,
+      stack: error.stack
+    });
   }
 });
 
