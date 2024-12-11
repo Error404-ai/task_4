@@ -18,13 +18,31 @@ const SongSchema = new mongoose.Schema({
   },
   image: {
     type: String,
-    required: true, // Mark as required if every song must have an image
+    required: true,
+    validate: {
+      validator: function (v) {
+        return /^(http|https):\/\/[^ "]+$/.test(v);
+      },
+      message: 'Invalid URL for image',
+    },
+  },
+  audio: {
+    type: String,
+    required: true,
+    validate: {
+      validator: function (v) {
+        return /^(http|https):\/\/[^ "]+$/.test(v);
+      },
+      message: 'Invalid URL for audio',
+    },
   },
   createdAt: {
     type: Date,
     default: Date.now,
   },
-
 });
+
+SongSchema.index({ title: 1 });
+SongSchema.index({ artist: 1 });
 
 module.exports = mongoose.model('Song', SongSchema);

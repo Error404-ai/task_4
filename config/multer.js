@@ -1,16 +1,26 @@
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
-const cloudinary = require('./cloudinary'); // Import Cloudinary setup
+const cloudinary = require('./cloudinary');
 
-// Configure Cloudinary storage for Multer
-const storage = new CloudinaryStorage({
+// Cloudinary storage for images
+const imageStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'songs',
-    allowed_formats: ['jpg', 'png', 'jpeg'] 
-  }
+    folder: 'songs/images',
+    allowed_formats: ['jpg', 'png', 'jpeg'],
+  },
 });
 
-const upload = multer({ storage });
+// Cloudinary storage for audios
+const audioStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'songs/audios',
+    allowed_formats: ['mp3', 'mp4', 'aac'],
+  },
+});
 
-module.exports = upload;
+module.exports = {
+  uploadImages: multer({ storage: imageStorage }),
+  uploadAudios: multer({ storage: audioStorage }),
+};
