@@ -267,4 +267,24 @@ router.delete('/delete-account', async (req, res) => {
   }
 });
 
+//delete playlist
+router.delete('/playlist/:playlistId', async (req, res) => {
+  try {
+    const { playlistId } = req.params;
+
+    const playlist = await Playlist.findById(playlistId);
+    if (!playlist) {
+      return res.status(404).json({ message: 'Playlist not found' });
+    }
+
+    await Playlist.findByIdAndDelete(playlistId);
+
+    res.status(200).json({ message: 'Playlist deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting playlist:', error);
+    res.status(500).json({ message: 'Error deleting playlist', error });
+  }
+});
+
+
 module.exports = router;
