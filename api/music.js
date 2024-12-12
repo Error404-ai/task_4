@@ -4,7 +4,7 @@ const cloudinary = require('../config/cloudinary');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const Song = require('../models/Song');
+const Song = require('../models/song.js');
 const Playlist = require('../models/playlist.js');
 
 // Create a local storage for temporary file storage
