@@ -287,5 +287,34 @@ router.delete('/playlist/:playlistId', async (req, res) => {
   }
 });
 
+//remove song from a playlist
+router.delete('/playlist/remove-song', async (req, res) => {
+  try {
+    const { playlistId, songId } = req.body;
+
+    // Check if playlist exists
+    const playlist = await Playlist.findById(playlistId);
+    if (!playlist) {
+      return res.status(404).json({ message: 'Playlist not found' });
+    }
+    const songIndex = playlist.songs.indexOf(songId);
+    if (songIndex === -1) {
+      return res.status(400).json({ message: 'Song not found in playlist' });
+    }
+
+    playlist.songs.splice(songIndex, 1);
+    const updatedPlaylist = await playlist.save();
+
+    res.status(200).json({ 
+      message: 'Song removed from playlist successfully', 
+      playlist: updatedPlaylist 
+    });
+  } catch (error) {
+    console.error('Error removing song from playlist:', error);
+    res.status(500).json({ message: 'Error removing song from playlist', error });
+  }
+});
+
+
 
 module.exports = router;
