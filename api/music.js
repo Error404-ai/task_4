@@ -288,7 +288,7 @@ router.delete('/playlist/:playlistId', async (req, res) => {
 });
 
 //remove song from a playlist
-router.delete('/playlist/remove-song', async (req, res) => {
+router.delete('/remove-song', async (req, res) => {
   try {
     const { playlistId, songId } = req.body;
 
