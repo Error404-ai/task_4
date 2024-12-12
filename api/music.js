@@ -271,6 +271,7 @@ router.delete('/delete-account', async (req, res) => {
 router.delete('/playlist/:playlistId', async (req, res) => {
   try {
     const { playlistId } = req.params;
+    console.log('DELETE request received for playlist:', req.params.playlistId);
 
     const playlist = await Playlist.findById(playlistId);
     if (!playlist) {
